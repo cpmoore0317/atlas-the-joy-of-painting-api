@@ -38,18 +38,27 @@ function datesForEpisodes() {
   return new Promise((resolve, reject) => {
     fs.readFile(episode_dates, 'utf8', (err, data) => {
       if (err) {
-        console.error('Error reading episode dates file:', err);
+        console.error('Error reading text file:', err);
         reject(err);
         return;
       }
       // Parse the text data and extract rows
       const rows = data.trim().split('\n').map(row => row.split('('));
+      let item_date = "";
       let dates = [];
-      for (let i = 0; i < rows.length; i++) {
-        let item_date = new Date(rows[i][1].split(')')[0]);
-        item_date = item_date.toLocaleDateString();
-        dates.push(item_date.toString());
-      }
+      rows.forEach((row, i) => {
+        if (row.length > 1) {
+          try {
+            item_date = new Date(row[1].split(')')[0]);
+            item_date = item_date.toLocaleDateString();
+            dates.push(item_date.toString());
+          } catch (e) {
+            console.error(`Error processing row ${i}:`, row, e);
+          }
+        } else {
+          console.error(`Row ${i} does not have the expected format:`, row);
+        }
+      });
       resolve(dates);
     });
   });
