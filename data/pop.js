@@ -2,9 +2,9 @@ const mysql = require('mysql');
 const fs = require('fs');
 const path = require('path');
 
-const colors_used = path.join(__dirname, 'data', 'The Joy Of Painting - Colors Used.csv');
-const episode_dates = path.join(__dirname, 'data', 'The Joy Of Painting - Subject Matter.txt');
-const subject_matter = path.join(__dirname, 'data', 'The Joy Of Painting - Episode Dates.txt');
+const colors_used = path.join(__dirname, './', 'The Joy Of Painting - Colors Used.csv');
+const episode_dates = path.join(__dirname, './', 'The Joy Of Painting - Subject Matter.txt');
+const subject_matter = path.join(__dirname, './', 'The Joy Of Painting - Episode Dates.txt');
 
 const connection = mysql.createConnection({
   host: 'localhost',
