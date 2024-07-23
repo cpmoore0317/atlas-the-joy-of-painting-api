@@ -13,7 +13,7 @@ const connection = mysql.createConnection(dbConfig);
 
 // Function to execute the SQL script
 function runSqlScript() {
-  const scriptFilePath = './data/database_init.sql';
+  const scriptFilePath = './sql/database_init.sql';
   fs.readFile(scriptFilePath, 'utf8', (err, sqlScript) => {
     if (err) {
       console.error('Error reading SQL script file:', err);
