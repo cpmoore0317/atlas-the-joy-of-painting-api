@@ -1,33 +1,43 @@
 import pymysql
-import pandas as pd
+import os
 
 # Configuration for the MySQL connection
 db_config = {
     'host': 'localhost',
     'user': 'root',
     'password': 'root',
-    'database': '',
-    'autocommit': True
+    'database': 'joy_of_painting'
 }
 
-# Function to execute the SQL script
-def run_sql_script():
-    connection = pymysql.connect(**db_config)
-    cursor = connection.cursor()
+# Connect without specifying the database first
+connection = pymysql.connect(
+    host=db_config['host'],
+    user=db_config['user'],
+    password=db_config['password'],
+    database=db_config['database']
+)
 
+# Function to create tables
+def create_tables():
     script_file_path = './sql/database_init.sql'
-    try:
-        with open(script_file_path, 'r', encoding='utf8') as file:
+    if os.path.exists(script_file_path):
+        with open(script_file_path, 'r') as file:
             sql_script = file.read()
-        cursor.execute(sql_script)
-        print('SQL script executed successfully.')
-    except Exception as e:
-        print(f'Error executing SQL script: {e}')
-    finally:
-        cursor.close()
-        connection.close()
-        print('MySQL connection closed.')
+            statements = sql_script.split(';')
+            with connection.cursor() as cursor:
+                for statement in statements:
+                    if statement.strip():
+                        cursor.execute(statement)
+                connection.commit()
+                print('Tables created successfully.')
+
+# Function to close the MySQL connection
+def close_connection():
+    connection.close()
+    print('MySQL connection closed.')
 
 # Initialize the database connection and execute the SQL script
-if __name__ == "__main__":
-    run_sql_script()
+try:
+    create_tables()
+finally:
+    close_connection()

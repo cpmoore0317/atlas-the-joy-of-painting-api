@@ -1,6 +1,3 @@
-CREATE DATABASE IF NOT EXISTS joy_of_painting;
-USE joy_of_painting;
-
 -- Create table for episodes
 CREATE TABLE IF NOT EXISTS episodes (
     episode_id INT PRIMARY KEY AUTO_INCREMENT,
