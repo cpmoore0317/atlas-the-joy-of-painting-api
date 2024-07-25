@@ -1,67 +1,62 @@
 import pymysql
 import pandas as pd
-from datetime import datetime
+import os
 
 # Configuration for the MySQL connection
 db_config = {
     'host': 'localhost',
     'user': 'root',
     'password': 'root',
-    'database': 'joy_of_painting',
-    'autocommit': True
+    'database': 'joy_of_painting'
 }
 
-colors_used = './data/The Joy Of Painiting - Colors Used'
-episode_dates = './data/The Joy Of Painiting - Subject Matter'
+# File paths
+colors_used = './data/The Joy Of Painting - Colors Used'
+episode_dates = './data/The Joy Of Painting - Subject Matter'
 subject_matter = './data/The Joy Of Painting - Episode Dates'
 
-def read_colors_used():
-    df = pd.read_csv(colors_used)
-    return df[['Column3', 'Column4', 'Column5', 'Column2', 'Column7']].values.tolist()
+# Create a MySQL connection
+connection = pymysql.connect(**db_config)
 
-def read_episode_dates():
-    with open(episode_dates, 'r', encoding='utf8') as file:
-        data = file.readlines()
+def read_csv_file(file_path, columns):
+    if os.path.exists(file_path):
+        df = pd.read_csv(file_path)
+        print(f"Columns in {file_path}: {df.columns.tolist()}")  # Print columns for debugging
+        if all(col in df.columns for col in columns):
+            return df[columns].values.tolist()
+        else:
+            raise ValueError(f"None of the columns {columns} are in the DataFrame")
+    else:
+        raise FileNotFoundError(f"File {file_path} does not exist")
 
-    dates = []
-    for row in data:
-        try:
-            date_str = row.split('(')[1].split(')')[0]
-            date = datetime.strptime(date_str, '%B %d, %Y').strftime('%Y-%m-%d')
-            dates.append(date)
-        except Exception as e:
-            print(f'Error processing row: {row}, {e}')
-            dates.append(None)
+def colors_used_for_episodes():
+    columns = ['Column3', 'Column4', 'Column5', 'Column2', 'Column7']
+    return read_csv_file(colors_used, columns)
 
-    return dates
+def dates_for_episodes():
+    columns = ['Date']
+    data = read_csv_file(episode_dates, columns)
+    return [pd.to_datetime(date).strftime('%Y-%m-%d') for date, in data]
 
 def merge_data(data1, data2):
-    return [row + [data2[idx]] for idx, row in enumerate(data1)]
+    return [row1 + [row2[0]] for row1, row2 in zip(data1, data2)]
 
-def insert_data(data):
-    connection = pymysql.connect(**db_config)
-    cursor = connection.cursor()
-    sql = """
-        INSERT INTO episodes (title, season_number, episode_number, painting_img_src, painting_yt_src, air_date)
-        VALUES (%s, %s, %s, %s, %s, %s)
-    """
-
-    try:
-        cursor.executemany(sql, data)
+try:
+    colors_data = colors_used_for_episodes()
+    dates_data = dates_for_episodes()
+    merged_data = merge_data(colors_data, dates_data)
+    print(merged_data[:3])  # Print first few rows for debugging
+    
+    # Insert data into the database
+    sql = "INSERT INTO episodes (title, season_number, episode_number, painting_img_src, painting_yt_src, air_date) VALUES (%s, %s, %s, %s, %s, %s)"
+    with connection.cursor() as cursor:
+        cursor.executemany(sql, merged_data)
+        connection.commit()
         print('Data inserted successfully into episodes table.')
-    except Exception as e:
-        print(f'Error inserting data into episodes table: {e}')
-    finally:
-        cursor.close()
-        connection.close()
-        print('MySQL connection closed.')
 
-# Call the functions to read and merge data from files
-if __name__ == "__main__":
-    try:
-        colors_data = read_colors_used()
-        dates_data = read_episode_dates()
-        merged_data = merge_data(colors_data, dates_data)
-        insert_data(merged_data)
-    except Exception as e:
-        print(f'Error: {e}')
+except Exception as e:
+    print(f"Error: {e}")
+
+finally:
+    connection.close()
+    print('MySQL connection closed.')
