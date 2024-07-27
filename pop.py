@@ -1,5 +1,5 @@
 import pymysql
-import pandas as pd
+import csv
 import os
 
 # Configuration for the MySQL connection
@@ -11,8 +11,9 @@ db_config = {
 }
 
 # File paths
-colors_used = './data/The Joy Of Painting - Colors Used'
-episode_dates = './data/The Joy Of Painting - Subject Matter'
+colors_used_file = './data/The Joy Of Painting - Colors Used'
+subject_matter_file = './data/The Joy Of Painting - Subject Matter'
+episode_dates_file = './data/The Joy Of Painting - Episode Dates'
 
 # Create a MySQL connection
 try:
@@ -21,57 +22,107 @@ except pymysql.MySQLError as e:
     print(f"Error connecting to MySQL: {e}")
     raise
 
-def read_csv_file(file_path, columns):
-    if os.path.exists(file_path):
-        df = pd.read_csv(file_path)
-        print(f"Columns in {file_path}: {df.columns.tolist()}")  # Print columns for debugging
-        if all(col in df.columns for col in columns):
-            return df[columns].values.tolist()
-        else:
-            raise ValueError(f"None of the columns {columns} are in the DataFrame")
-    else:
-        raise FileNotFoundError(f"File {file_path} does not exist")
+def read_csv_file(filename, columns=None):
+    data = []
+    with open(filename, 'r', newline='', encoding='utf-8') as file:
+        reader = csv.reader(file)
+        if columns is None:
+            columns = [f"Column{i}" for i in range(len(next(reader)))]
+            file.seek(0)  # Go back to the start of the file
+        for row in reader:
+            if len(row) == len(columns):  # Ensure row matches expected column length
+                data.append(dict(zip(columns, row)))
+    return data
 
 def colors_used_for_episodes():
-    columns = ['painting_title', 'season', 'episode', 'img_src', 'youtube_src']
-    return read_csv_file(colors_used, columns)
+    columns = ['painting_title', 'season', 'episode', 'img_src', 'youtube_src', 'colors', 'color_hex']
+    return read_csv_file(colors_used_file, columns)
 
-def dates_for_episodes():
-    columns = ['EPISODE']  # Update to actual column name in the CSV file
-    data = read_csv_file(episode_dates, columns)
-    # Convert to list of strings if necessary
-    return [str(episode[0]) for episode in data]
+def subject_matters_for_episodes():
+    columns = ['EPISODE']  # Adjust if needed
+    return read_csv_file(subject_matter_file, columns)
 
-def merge_data(data1, data2):
-    # Use None as a placeholder for missing air_date
-    return [row1 + [None] for row1, row2 in zip(data1, data2)]
+def episode_dates():
+    columns = ['Title', 'Date']
+    return read_csv_file(episode_dates_file, columns)
 
-try:
+def insert_data():
     colors_data = colors_used_for_episodes()
-    dates_data = dates_for_episodes()
-    merged_data = merge_data(colors_data, dates_data)
-    print(merged_data[:3])  # Print first few rows for debugging
-    
-    # Alter the table to allow NULL values for air_date
-    alter_table_sql = "ALTER TABLE episodes MODIFY air_date DATE NULL"
-    with connection.cursor() as cursor:
-        cursor.execute(alter_table_sql)
+    subject_matters_data = subject_matters_for_episodes()
+    dates_data = episode_dates()
+
+    try:
+        # Insert into episodes table
+        episode_sql = """
+        INSERT INTO episodes (title, season_number, episode_number, painting_img_src, painting_yt_src, air_date)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        """
+        with connection.cursor() as cursor:
+            for row in colors_data:
+                title = row['painting_title']
+                season = int(row['season'])
+                episode = int(row['episode'])
+                img_src = row['img_src']
+                youtube_src = row['youtube_src']
+                air_date = next((date['Date'] for date in dates_data if date['Title'].strip() == title), None)
+                cursor.execute(episode_sql, (title, season, episode, img_src, youtube_src, air_date))
+
+        # Insert into colors table
+        color_sql = "INSERT INTO colors (color_name, color_hex) VALUES (%s, %s)"
+        with connection.cursor() as cursor:
+            color_names_hex = [(row['colors'], row['color_hex']) for row in colors_data]
+            for color, hex in color_names_hex:
+                cursor.execute(color_sql, (color, hex))
+
+        # Insert into episode_colors table
+        episode_colors_sql = """
+        INSERT INTO episode_colors (episode_id, color_id)
+        SELECT e.episode_id, c.color_id
+        FROM episodes e, colors c
+        WHERE e.title = %s AND c.color_name = %s
+        """
+        with connection.cursor() as cursor:
+            for row in colors_data:
+                title = row['painting_title']
+                colors = row['colors'].split(';')  # Assuming colors are separated by semicolons
+                for color in colors:
+                    cursor.execute(episode_colors_sql, (title, color))
+
+        # Insert into subject_matters table
+        subject_matters = set()
+        for row in subject_matters_data:
+            subjects = row['EPISODE'].split(';')  # Adjust if needed
+            subject_matters.update(subjects)
+
+        subject_sql = "INSERT INTO subject_matters (subject_matter_name) VALUES (%s)"
+        with connection.cursor() as cursor:
+            for subject in subject_matters:
+                cursor.execute(subject_sql, (subject,))
+
+        # Insert into episode_subject_matters table
+        episode_subject_matters_sql = """
+        INSERT INTO episode_subject_matters (episode_id, subject_matter_id)
+        SELECT e.episode_id, sm.subject_matter_id
+        FROM episodes e, subject_matters sm
+        WHERE e.title = %s AND sm.subject_matter_name = %s
+        """
+        with connection.cursor() as cursor:
+            for row in subject_matters_data:
+                title = row['EPISODE']
+                subjects = row['EPISODE'].split(';')  # Adjust if needed
+                for subject in subjects:
+                    cursor.execute(episode_subject_matters_sql, (title, subject))
+
         connection.commit()
+        print('Data inserted successfully into all tables.')
 
-    # Insert data into the database
-    sql = """
-    INSERT INTO episodes (title, season_number, episode_number, painting_img_src, painting_yt_src, air_date)
-    VALUES (%s, %s, %s, %s, %s, %s)
-    """
-    with connection.cursor() as cursor:
-        for row in merged_data:
-            cursor.execute(sql, tuple(row))
-        connection.commit()
-        print('Data inserted successfully into episodes table.')
+    except Exception as e:
+        print(f"Error: {e}")
 
-except Exception as e:
-    print(f"Error: {e}")
+    finally:
+        connection.close()
+        print('MySQL connection closed.')
 
-finally:
-    connection.close()
-    print('MySQL connection closed.')
+# Run the insertion process
+if __name__ == "__main__":
+    insert_data()
