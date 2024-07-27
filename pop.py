@@ -13,10 +13,13 @@ db_config = {
 # File paths
 colors_used = './data/The Joy Of Painting - Colors Used'
 episode_dates = './data/The Joy Of Painting - Subject Matter'
-subject_matter = './data/The Joy Of Painting - Episode Dates'
 
 # Create a MySQL connection
-connection = pymysql.connect(**db_config)
+try:
+    connection = pymysql.connect(**db_config)
+except pymysql.MySQLError as e:
+    print(f"Error connecting to MySQL: {e}")
+    raise
 
 def read_csv_file(file_path, columns):
     if os.path.exists(file_path):
@@ -34,12 +37,14 @@ def colors_used_for_episodes():
     return read_csv_file(colors_used, columns)
 
 def dates_for_episodes():
-    columns = ['Date']
+    columns = ['EPISODE']  # Update to actual column name in the CSV file
     data = read_csv_file(episode_dates, columns)
-    return [pd.to_datetime(date).strftime('%Y-%m-%d') for date, in data]
+    # Convert to list of strings if necessary
+    return [str(episode[0]) for episode in data]
 
 def merge_data(data1, data2):
-    return [row1 + [row2[0]] for row1, row2 in zip(data1, data2)]
+    # Use None as a placeholder for missing air_date
+    return [row1 + [None] for row1, row2 in zip(data1, data2)]
 
 try:
     colors_data = colors_used_for_episodes()
@@ -47,10 +52,20 @@ try:
     merged_data = merge_data(colors_data, dates_data)
     print(merged_data[:3])  # Print first few rows for debugging
     
-    # Insert data into the database
-    sql = "INSERT INTO episodes (title, season_number, episode_number, painting_img_src, painting_yt_src, air_date) VALUES (%s, %s, %s, %s, %s, %s)"
+    # Alter the table to allow NULL values for air_date
+    alter_table_sql = "ALTER TABLE episodes MODIFY air_date DATE NULL"
     with connection.cursor() as cursor:
-        cursor.executemany(sql, merged_data)
+        cursor.execute(alter_table_sql)
+        connection.commit()
+
+    # Insert data into the database
+    sql = """
+    INSERT INTO episodes (title, season_number, episode_number, painting_img_src, painting_yt_src, air_date)
+    VALUES (%s, %s, %s, %s, %s, %s)
+    """
+    with connection.cursor() as cursor:
+        for row in merged_data:
+            cursor.execute(sql, tuple(row))
         connection.commit()
         print('Data inserted successfully into episodes table.')
 
