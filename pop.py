@@ -30,7 +30,7 @@ def read_csv_file(file_path, columns):
         raise FileNotFoundError(f"File {file_path} does not exist")
 
 def colors_used_for_episodes():
-    columns = ['Column3', 'Column4', 'Column5', 'Column2', 'Column7']
+    columns = ['painting_title', 'season', 'episode', 'img_src', 'youtube_src']
     return read_csv_file(colors_used, columns)
 
 def dates_for_episodes():
