@@ -66,6 +66,7 @@ def insert_data():
                 youtube_src = row['youtube_src']
                 air_date = next((date['Date'] for date in dates_data if date['Title'].strip() == title), None)
                 cursor.execute(episode_sql, (title, season, episode, img_src, youtube_src, air_date))
+                print(f"Inserted episode: {title}")  # Debug statement
 
         # Insert into colors table
         color_sql = "INSERT INTO colors (color_name, color_hex) VALUES (%s, %s)"
@@ -73,6 +74,7 @@ def insert_data():
             color_names_hex = [(row['colors'], row['color_hex']) for row in colors_data]
             for color, hex in color_names_hex:
                 cursor.execute(color_sql, (color, hex))
+                print(f"Inserted color: {color}")  # Debug statement
 
         # Insert into episode_colors table
         episode_colors_sql = """
@@ -87,6 +89,7 @@ def insert_data():
                 colors = row['colors'].split(';')  # Assuming colors are separated by semicolons
                 for color in colors:
                     cursor.execute(episode_colors_sql, (title, color))
+                    print(f"Linked episode: {title} with color: {color}")  # Debug statement
 
         # Insert into subject_matters table
         subject_matters = set()
@@ -97,7 +100,8 @@ def insert_data():
         subject_sql = "INSERT INTO subject_matters (subject_matter_name) VALUES (%s)"
         with connection.cursor() as cursor:
             for subject in subject_matters:
-                cursor.execute(subject_sql, (subject,))
+                cursor.execute(subject_sql, (subject))
+                print(f"Inserted subject matter: {subject}")  # Debug statement
 
         # Insert into episode_subject_matters table
         episode_subject_matters_sql = """
@@ -112,6 +116,7 @@ def insert_data():
                 subjects = row['EPISODE'].split(';')  # Adjust if needed
                 for subject in subjects:
                     cursor.execute(episode_subject_matters_sql, (title, subject))
+                    print(f"Linked episode: {title} with subject matter: {subject}")  # Debug statement
 
         connection.commit()
         print('Data inserted successfully into all tables.')
