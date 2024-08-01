@@ -11,9 +11,9 @@ db_config = {
 }
 
 # File paths
-colors_used_file = './data/The Joy Of Painting - Colors Used'
-subject_matter_file = './data/The Joy Of Painting - Subject Matter'
-episode_dates_file = './data/The Joy Of Painting - Episode Dates'
+colors_used_file = './data/The Joy Of Painting - Colors Used.csv'
+subject_matter_file = './data/The Joy Of Painting - Subject Matter.csv'
+episode_dates_file = './data/The Joy Of Painting - Episode Dates.csv'
 
 # Create a MySQL connection
 try:
